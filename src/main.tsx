@@ -6,7 +6,6 @@ import {
   StyleSheet,
   FlatList,
   Image,
-  Dimensions,
   TouchableOpacity,
   ScrollView,
   TextInput,
@@ -14,65 +13,13 @@ import {
 } from 'react-native';
 import {Pics} from './assets';
 import {colors} from './assets/theme';
-
-const allUsers = [
-  {
-    id: 1,
-    names: 'Gelio Bizimana',
-    type: 'Fulltime',
-    job: 'DevOps',
-    status: 'Active',
-  },
-  {
-    id: 2,
-    names: 'Emile Shumbusho',
-    type: 'Parttime',
-    job: 'FrontEnd Dev',
-    status: 'Active',
-  },
-  {
-    id: 3,
-    names: 'Eloi Chris',
-    type: 'Fulltime',
-    job: 'Backend Dev',
-    status: 'Active',
-  },
-  {
-    id: 4,
-    names: 'Kevine Ineza',
-    type: 'Fulltime',
-    job: 'PM',
-    status: 'Active',
-  },
-  {
-    id: 5,
-    names: 'Gelio Bizimana',
-    type: 'Fulltime',
-    job: 'Fullstack',
-    status: 'Active',
-  },
-  {
-    id: 6,
-    names: 'Emile Shumbusho',
-    type: 'Parttime',
-    job: 'FrontEnd Dev',
-    status: 'Active',
-  },
-  {
-    id: 7,
-    names: 'Eloi Chris',
-    type: 'Fulltime',
-    job: 'Backend Dev',
-    status: 'Active',
-  },
-  {
-    id: 8,
-    names: 'Kevine Ineza',
-    type: 'Fulltime',
-    job: 'PM',
-    status: 'Active',
-  },
-];
+import {User} from './db/data';
+import {
+  addEmployees,
+  deleteEmployee,
+  getEmployees,
+  updateEmployee,
+} from './services';
 
 enum CurrentState {
   EDITING,
@@ -80,25 +27,30 @@ enum CurrentState {
   CREATE,
 }
 
-interface user {
-  id?: number;
-  names: string;
-  type: string;
-  job: string;
-  status: string;
-}
+type Loading = {
+  createLoading: boolean;
+  updateLoading: boolean;
+  getLoading: boolean;
+  deleteLoading: boolean;
+};
 
 const Main = () => {
-  const [users, setUsers] = React.useState<user[]>([...allUsers]);
-  const [selected, setSelected] = React.useState<user>(users[0]);
+  const [users, setUsers] = React.useState<User[]>([]);
+  const [selected, setSelected] = React.useState<User>(users[0]);
   const [currentState, setCurrentState] = React.useState<CurrentState>(
     CurrentState.LIST,
   );
-  const [user, setUser] = React.useState<user>({
+  const [user, setUser] = React.useState<User>({
     names: '',
     type: '',
     job: '',
     status: 'Active',
+  });
+  const [loading, setLoading] = React.useState<Loading>({
+    createLoading: false,
+    updateLoading: false,
+    getLoading: false,
+    deleteLoading: false,
   });
 
   const handleSelection = (id: number) => {
@@ -106,7 +58,7 @@ const Main = () => {
     setSelected(selectedUser);
   };
 
-  const setEditing = (user: user) => {
+  const setEditing = (user: User) => {
     setCurrentState(CurrentState.EDITING);
     setUser(user);
   };
@@ -125,50 +77,95 @@ const Main = () => {
     resetForm();
   };
 
+  const getAllUsers = React.useCallback(async () => {
+    setLoading(state => ({...state, getLoading: true}));
+    const users = await getEmployees();
+    setUsers(users);
+    setSelected(users[0]);
+    setLoading(state => ({...state, getLoading: false}));
+  }, []);
+  React.useEffect(() => {
+    getAllUsers();
+  }, []);
+
+  const handleChange = (field: string) => (text: string) => {
+    setUser(state => ({...state, [field]: text}));
+  };
+
+  const handleSave = async () => {
+    setLoading(state => ({...state, createLoading: true}));
+    if (currentState === CurrentState.CREATE) {
+      await addEmployees(user);
+    }
+    if (currentState === CurrentState.EDITING) {
+      await updateEmployee(user);
+    }
+    setLoading(state => ({...state, createLoading: false}));
+    getAllUsers();
+    setCurrentState(CurrentState.LIST);
+  };
+
+  const handleDelete = async () => {
+    setLoading(state => ({...state, deleteLoading: true}));
+    await deleteEmployee(selected.id as number);
+    setLoading(state => ({...state, deleteLoading: false}));
+    getAllUsers();
+  };
+
   return (
     <View style={styles.container}>
       <View>
         <Text style={[styles.titles]}>Employee Management</Text>
       </View>
-      <View style={styles.profileContainer}>
-        <Text style={[styles.titles, {fontSize: 14, marginLeft: 32}]}>
-          Info
-        </Text>
-        <View style={styles.profileData}>
-          <View style={styles.imageContainer}>
-            <Image style={styles.profileImage} source={Pics.profileAvatar} />
-          </View>
-          <View>
-            <View style={styles.profileFields}>
-              <Text style={styles.subTitle}>names: </Text>
-              <Text style={styles.normalText}>{selected.names}</Text>
+      {selected && (
+        <View style={styles.profileContainer}>
+          <Text style={[styles.titles, {fontSize: 14, marginLeft: 32}]}>
+            Info
+          </Text>
+          <View style={styles.profileData}>
+            <View style={styles.imageContainer}>
+              <Image style={styles.profileImage} source={Pics.profileAvatar} />
             </View>
-            <View style={styles.profileFields}>
-              <Text style={styles.subTitle}>Job Type: </Text>
-              <Text style={styles.normalText}>{selected.type}</Text>
+            <View>
+              <View style={styles.profileFields}>
+                <Text style={styles.subTitle}>names: </Text>
+                <Text style={styles.normalText}>{selected.names}</Text>
+              </View>
+              <View style={styles.profileFields}>
+                <Text style={styles.subTitle}>Job Type: </Text>
+                <Text style={styles.normalText}>{selected.type}</Text>
+              </View>
+              <View style={styles.profileFields}>
+                <Text style={styles.subTitle}>Job Title: </Text>
+                <Text style={styles.normalText}>{selected.job}</Text>
+              </View>
+              <View style={styles.profileFields}>
+                <Text style={styles.subTitle}>Status: </Text>
+                <Text style={styles.normalText}>{selected.status}</Text>
+              </View>
             </View>
-            <View style={styles.profileFields}>
-              <Text style={styles.subTitle}>Job Title: </Text>
-              <Text style={styles.normalText}>{selected.job}</Text>
+            <View>
+              <TouchableOpacity
+                onPress={() => setEditing(selected)}
+                style={styles.actionsBtn}
+                activeOpacity={0.6}>
+                <Icon name="edit" color={colors['600']} size={20} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                disabled={loading.deleteLoading}
+                style={styles.actionsBtn}
+                activeOpacity={0.6}>
+                <Icon
+                  onPress={handleDelete}
+                  color="red"
+                  name={loading.deleteLoading ? 'rotate-right' : 'delete'}
+                  size={20}
+                />
+              </TouchableOpacity>
             </View>
-            <View style={styles.profileFields}>
-              <Text style={styles.subTitle}>Status: </Text>
-              <Text style={styles.normalText}>{selected.status}</Text>
-            </View>
-          </View>
-          <View>
-            <TouchableOpacity
-              onPress={() => setEditing(selected)}
-              style={styles.actionsBtn}
-              activeOpacity={0.6}>
-              <Icon name="edit" color={colors['600']} size={20} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionsBtn} activeOpacity={0.6}>
-              <Icon color="red" name="delete" size={20} />
-            </TouchableOpacity>
           </View>
         </View>
-      </View>
+      )}
       <View style={styles.listHeader}>
         <Text style={[styles.titles, {color: '#fff'}]}>
           {currentState === CurrentState.LIST &&
@@ -197,6 +194,8 @@ const Main = () => {
       {currentState === CurrentState.LIST ? (
         <FlatList
           data={users}
+          initialNumToRender={12}
+          keyExtractor={item => String(item.id)}
           renderItem={({item}) => (
             <TouchableOpacity
               onPress={() => handleSelection(item.id as number)}
@@ -233,7 +232,7 @@ const Main = () => {
           <TextInput
             style={styles.input}
             placeholderTextColor={colors['950']}
-            // onChangeText={onChangeNumber}
+            onChangeText={handleChange('names')}
             value={user.names}
             autoFocus
             keyboardType="default"
@@ -248,7 +247,7 @@ const Main = () => {
           <TextInput
             style={styles.input}
             placeholderTextColor={colors['950']}
-            // onChangeText={onChangeNumber}
+            onChangeText={handleChange('job')}
             value={user.job}
             keyboardType="default"
           />
@@ -262,12 +261,16 @@ const Main = () => {
           <TextInput
             style={styles.input}
             placeholderTextColor={colors['950']}
-            // onChangeText={onChangeNumber}
-            value={user.names}
+            onChangeText={handleChange('type')}
+            value={user.type}
             keyboardType="default"
           />
           <View style={{margin: 12, marginTop: 24}}>
-            <Button color={colors['700']} title="Save" />
+            <Button
+              onPress={handleSave}
+              color={colors['700']}
+              title={loading.createLoading ? 'Loading ...' : 'Save'}
+            />
           </View>
         </ScrollView>
       )}
